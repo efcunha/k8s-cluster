@@ -1,0 +1,224 @@
+# Default values for neuvector.
+# This is a YAML-formatted file.
+# Declare variables to be passed into the templates.
+openshift: false
+registry: docker.io
+tag: 5.0.0-b2
+oem:
+imagePullSecrets:
+psp: false
+serviceAccount: default
+controller:
+  enabled: true
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  image:
+    repository: neuvector/controller
+    hash:
+  replicas: 3
+  disruptionbudget: 0
+  schedulerName:
+  priorityClassName:
+  env: []
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - neuvector-controller-pod
+          topologyKey: "kubernetes.io/hostname"
+  tolerations: []
+  nodeSelector: {}
+  apisvc:
+    type:
+    annotations: {}
+    route:
+      enabled: false
+      termination: passthrough
+      host:
+  ranchersso:
+    enabled: false
+  pvc:
+    enabled: false
+    accessModes:
+      - ReadWriteMany
+    storageClass: 
+    capacity:
+  azureFileShare:
+    enabled: false
+    secretName:
+    shareName:
+  certificate:
+    secret:
+    keyFile: tls.key
+    pemFile: tls.pem
+  federation:
+    mastersvc:
+      type:
+      ingress:
+        enabled: false
+        host:  
+        ingressClassName: ""
+        path: "/" 
+        annotations:
+          ingress.kubernetes.io/protocol: https
+        tls: false
+        secretName: 
+      annotations: {}
+      route:
+        enabled: false
+        termination: passthrough
+        host:
+    managedsvc:
+      type:
+      ingress:
+        enabled: false
+        host:  
+        ingressClassName: ""
+        path: "/"
+        annotations:
+          ingress.kubernetes.io/protocol: https
+        tls: false
+        secretName: 
+      annotations: {}
+      route:
+        enabled: false
+        termination: passthrough
+        host:
+  ingress:
+    enabled: false
+    host: 
+    ingressClassName: ""
+    path: "/"
+    annotations:
+      ingress.kubernetes.io/protocol: https
+    tls: false
+    secretName:
+  resources: {}
+  configmap:
+    enabled: false
+    data:
+  secret:
+    enabled: false
+    data: {}
+enforcer:
+  enabled: true
+  image:
+    repository: neuvector/enforcer
+    hash:
+  priorityClassName:
+  tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/master
+  resources: 
+    limits:
+      cpu: 400m
+      memory: 2792Mi
+    requests:
+      cpu: 100m
+      memory: 2280Mi
+manager:
+  enabled: true
+  image:
+    repository: neuvector/manager
+    hash:
+  priorityClassName:
+  env:
+    ssl: true
+  svc:
+    type: NodePort
+    loadBalancerIP:
+    annotations: {}
+  route:
+    enabled: true
+    termination: passthrough
+    host:
+  certificate:
+    secret:
+    keyFile: tls.key
+    pemFile: tls.pem
+  ingress:
+    enabled: true
+    host: neuvector.edson-devops.eti.br 
+    ingressClassName: nginx
+    path: "/"
+    annotations: 
+      ingress.kubernetes.io/protocol: https
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    tls: true
+    secretName: tls-neuvector-ingress
+  resources: 
+    limits:
+      cpu: 400m
+      memory: 2792Mi
+    requests:
+      cpu: 100m
+      memory: 2280Mi
+  affinity: {}
+  tolerations: []
+  nodeSelector: {}
+cve:
+  updater:
+    enabled: true
+    secure: false
+    image:
+      repository: neuvector/updater
+      tag: latest
+      hash:
+    schedule: "0 0 * * *"
+    priorityClassName:
+  scanner:
+    enabled: true
+    replicas: 3
+    dockerPath: ""
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+    image:
+      repository: neuvector/scanner
+      tag: latest
+      hash:
+    priorityClassName:
+    resources: # {}
+      limits:
+        cpu: 400m
+        memory: 2792Mi
+      requests:
+        cpu: 100m
+        memory: 2280Mi
+    affinity: {}
+    tolerations: []
+    nodeSelector: {}
+docker:
+  path: /var/run/docker.sock
+resources: {}
+k3s:
+  enabled: false
+  runtimePath: /run/k3s/containerd/containerd.sock
+bottlerocket:
+  enabled: false
+  runtimePath: /run/dockershim.sock
+containerd:
+  enabled: false
+  path: /var/run/containerd/containerd.sock
+crio:
+  enabled: false
+  path: /var/run/crio/crio.sock
+admissionwebhook:
+  type: ClusterIP
+crdwebhook:
+  enabled: true
+  type: ClusterIP

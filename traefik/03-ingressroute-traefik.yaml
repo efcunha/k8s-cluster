@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  managedFields:
+  name: traefik-dashboard
+  namespace: default
+  resourceVersion: "30137"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: traefik.edson-devops.eti.br
+    http:
+      paths:
+      - backend:
+          service:
+            name: traefik-dashboard
+            port:
+              number: 9000
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - traefik.edson-devops.eti.br
+    secretName: tls-traefik-ingress
+status:
+  loadBalancer:
+    ingress:
+    - ip: 192.168.1.10
+

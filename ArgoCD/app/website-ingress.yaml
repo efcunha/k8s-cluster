@@ -1,0 +1,22 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: website-ingress
+  labels:
+    app: argocdrocks
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: default
+spec:
+  rules:
+  - host: argocd.dominio.com.br
+    http:
+      paths:
+      - backend:
+          serviceName: website-service
+          servicePort: 80
+        path: /argocd
+        pathType: ImplementationSpecific
+  tls:
+  - secretName: traefik-cert

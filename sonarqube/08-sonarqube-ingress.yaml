@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+  managedFields:
+  name: sonarqubeingress
+  namespace: sonarqube
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: sonarqube.edson-devops.eti.br
+    http:
+      paths:
+      - backend:
+          service:
+            name: sonarqube
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - sonarqube.edson-devops.eti.br
+    secretName: tls-sonarqube-ingress
+status:
+  loadBalancer:
+    ingress:
+    - ip: 192.168.1.10

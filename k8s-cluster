@@ -1,0 +1,2094 @@
+#!/bin/sh
+
+# Instalation variables
+CLUSTER_DOMAIN=edson-devops.eti.br
+CLUSTER_NAME=rke-cluater
+READ_VALUE=
+SERVER_IP=192.168.1.10
+USER_NAME=efcunha
+INSTALL_PVP=Yes
+INSTALL_CERTMANAGER=Yes
+INSTALL_RANCHER=No
+INSTALL_JENKINS=No
+INSTALL_SONARQUBE=No
+INSTALL_HARBOR=No
+INSTALL_NEUVECTOR=No
+
+# bold text 
+bold=$(tput bold)
+normal=$(tput sgr0)
+yes_no="(${bold}Y${normal}es/${bold}N${normal}o)"
+
+
+# $1 text to show - $2 default value
+read_value ()
+{
+read -p "${1} [${bold}${2}${normal}]: " READ_VALUE
+if [ "${READ_VALUE}" = "" ]
+then
+	READ_VALUE=$2
+fi
+}
+
+# Check if exist docker, k3d and kubectl
+checkDependencies ()
+{
+# Check Docker
+if ! type docker > /dev/null; then
+	echo "Docker could not be found. Installing it ..."
+	curl -L -o ./install-docker.sh "https://get.docker.com"
+	chmod +x ./install-docker.sh
+	./install-docker.sh
+	sudo usermod -aG docker $USER
+	#exit
+fi
+
+# Check Kubectl
+if ! type kubectl > /dev/null; then
+	echo "Kubectl could not be found. Installing it ..."
+	curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+	chmod +x ./kubectl
+	sudo mv ./kubectl /usr/local/bin/kubectl
+	kubectl version --client
+	#exit
+fi
+
+# Check Rke
+if ! type rke > /dev/null; then
+	echo "RKE could not be found. Installing it ..."
+	curl -s https://api.github.com/repos/rancher/rke/releases/latest | grep download_url | grep amd64 | cut -d '"' -f 4 | wget -qi -
+	chmod +x rke_linux-amd64
+	sudo mv rke_linux-amd64 /usr/local/bin/rke
+	rke --version
+fi
+
+# Check Helm
+if ! type helm > /dev/null; then
+	echo "Helm could not be found. Installing it ..."
+	curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+	chmod +x ./get_helm.sh
+	./get_helm.sh
+	# Add default repos
+	helm repo add stable https://charts.helm.sh/stable
+	# Add kubernetes-dashboard repository
+	helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
+	# Add bitnami helm repos
+	helm repo add bitnami https://charts.bitnami.com/bitnami
+	# Add Prometheus helm repos
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	# Add Rancher helm repos
+	helm repo add rancher-latest https://releases.rancher.com/server-charts/latest
+	# Add jetstack helm repos
+	helm repo add jetstack https://charts.jetstack.io
+	# Add Jenkins helm repos
+	helm repo add jenkins https://raw.githubusercontent.com/jenkinsci/kubernetes-operator/master/chart
+	# Add Harbor helm repos
+	helm repo add harbor https://helm.goharbor.io
+	# Add NeuVector helm repos
+	helm repo add neuvector https://neuvector.github.io/neuvector-helm/
+	# Add Sentry helm repos
+	helm repo add sentry https://sentry-kubernetes.github.io/charts
+	# Add SigNoz helm repos
+	helm repo add signoz https://charts.signoz.io
+	# Add Apache Skywalking helm repos
+	helm repo add skywalking https://apache.jfrog.io/artifactory/skywalking-helm
+	# Update helm
+	helm repo update
+	#exit
+fi
+}
+
+header()
+{
+    echo "\n\n${bold}${1}${normal}\n-------------------------------------"
+}
+
+footer()
+{
+    echo "-------------------------------------"
+}
+
+configValues ()
+{
+  read_value "Nome Cluster" "${CLUSTER_NAME}"
+  CLUSTER_NAME=${READ_VALUE}
+  read_value "Cluster Domain" "edson-devops.eti.br"
+  CLUSTER_DOMAIN=${READ_VALUE}
+}
+
+installCluster ()
+{
+  header "Criando Simples RKE cluster com controlplane,etcd,worker"
+  
+sleep 5
+cat <<EOF  > rancher-${CLUSTER_NAME}.yaml
+nodes:
+  - address: ${SERVER_IP}
+	user: ${USER_NAME}
+	role: [controlplane, worker, etcd]
+services:
+  etcd:
+	snapshot: true
+	creation: 6h
+	retention: 24h
+ingress:
+  provider: nginx
+  options:
+	use-forwarded-headers: "true"
+EOF
+
+rke up --config ./rancher-${CLUSTER_NAME}.yml
+
+header "waiting for cluster init ..."
+
+sleep 5
+export KUBECONFIG=$(pwd)/kube_config_rancher-${CLUSTER_NAME}.yml
+kubectl get nodes
+kubectl get pods --all-namespaces
+footer
+}
+
+installPVP ()
+{
+  header "Provisionando Volume Persistente"
+  # kubectl describe pv k3d-pv
+  kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+  sleep 5
+  kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  footer
+}
+
+installCertManager ()
+{
+  header "Instalando Cert-Manager"
+  # Update System
+  #sudo apt-get update -y
+
+  # Install dependenci
+  #sudo apt-get install wget libnss3-tools
+
+  kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+
+  sleep 5
+  kubectl create namespace cert-manager
+
+  helm install \
+    cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --version v1.8.2
+  
+  sleep 10
+  kubectl get pods -n cert-manager
+}
+
+installRancher ()
+{
+  header "Instalando Rancher UI"
+  
+  kubectl create namespace cattle-system
+  
+  kubectl -n cattle-system create secret tls tls-rancher-ingress --cert=certs/tls.crt --key=certs/tls.key 
+  kubectl -n cattle-system create secret generic tls-ca --from-file=certs/cacerts.pem
+  
+  helm upgrade --install rancher rancher-stable/rancher \
+	--namespace cattle-system \
+	--set hostname=rancher.edson-devops.eti.br \
+	--set ingress.tls.source=secret \
+	--set privateCA=true
+ 
+  footer
+  sleep 5
+  kubectl -n cattle-system rollout status deploy/rancher
+  sleep 5
+  kubectl -n cattle-system get deploy rancher
+  echo "acesso ao Rancher https://127.0.0.1:8901 ou https://rancher.xxxx.com:8901"
+  footer
+}
+
+installJenkins ()
+{
+header "Instalando Jenkins"
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+EOF
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+  managedFields:
+  name: jenkins-pv
+  namespace: jenkins
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-pv
+  namespace: jenkins
+spec:
+  storageClassName: jenkins-pv
+  accessModes:
+	- ReadWriteOnce
+  capacity:
+	storage: 20Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+	path: /data/jenkins-volume/
+EOF
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+EOF
+
+  cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+	rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+	kubernetes.io/bootstrapping: rbac-defaults
+  name: jenkins
+  namespace: jenkins
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - statefulsets
+  - services
+  - replicationcontrollers
+  - replicasets
+  - podtemplates
+  - podsecuritypolicies
+  - pods
+  - pods/log
+  - pods/exec
+  - podpreset
+  - poddisruptionbudget
+  - persistentvolumes
+  - persistentvolumeclaims
+  - jobs
+  - endpoints
+  - deployments
+  - deployments/scale
+  - daemonsets
+  - cronjobs
+  - configmaps
+  - namespaces
+  - events
+  - secrets
+  verbs:
+  - create
+  - get
+  - watch
+  - delete
+  - list
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+	rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+	kubernetes.io/bootstrapping: rbac-defaults
+  name: jenkins
+  namespace: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:serviceaccounts:jenkins
+EOF
+
+sleep 5
+kubectl -n jenkins create secret tls tls-jenkins-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n jenkins create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+cat <<EOF  > jenkins-values.yaml
+clusterZone: "cluster.local"
+renderHelmLabels: true
+controller:
+  componentName: "jenkins-controller"
+  image: "jenkins/jenkins"
+  tagLabel: jdk11
+  imagePullPolicy: "Always"
+  imagePullSecretName:
+  lifecycle:
+  disableRememberMe: false
+  numExecutors: 0
+  executorMode: "NORMAL"
+  markupFormatter: plainText
+  customJenkinsLabels: []
+  adminSecret: true
+  hostNetworking: false
+  adminUser: "admin"
+  admin:
+	existingSecret: ""
+	userKey: jenkins-admin-user
+	passwordKey: jenkins-admin-password
+  jenkinsHome: "/var/jenkins_home"
+  jenkinsRef: "/usr/share/jenkins/ref"
+  jenkinsWar: "/usr/share/jenkins/jenkins.war"
+  resources:
+	requests:
+	  cpu: "50m"
+	  memory: "256Mi"
+	limits:
+	  cpu: "2000m"
+	  memory: "4096Mi"
+  usePodSecurityContext: true
+  runAsUser: 1000
+  fsGroup: 1000
+  securityContextCapabilities: {}
+  containerSecurityContext:
+	runAsUser: 1000
+	runAsGroup: 1000
+	readOnlyRootFilesystem: true
+	allowPrivilegeEscalation: false
+  servicePort: 8080
+  targetPort: 8080
+  serviceType: ClusterIP
+  serviceExternalTrafficPolicy:
+  serviceAnnotations: {}
+  statefulSetLabels: {}
+  serviceLabels: {}
+  podLabels: {}
+  healthProbes: true
+  probes:
+	startupProbe:
+	  httpGet:
+		path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+		port: http
+	  periodSeconds: 10
+	  timeoutSeconds: 5
+	  failureThreshold: 12
+	livenessProbe:
+	  failureThreshold: 5
+	  httpGet:
+		path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+		port: http
+	  periodSeconds: 10
+	  timeoutSeconds: 5
+	readinessProbe:
+	  failureThreshold: 3
+	  httpGet:
+		path: '{{ default "" .Values.controller.jenkinsUriPrefix }}/login'
+		port: http
+	  periodSeconds: 10
+	  timeoutSeconds: 5
+  podDisruptionBudget:
+	enabled: false
+	apiVersion: "policy/v1beta1"
+	annotations: {}
+	labels: {}
+  agentListenerEnabled: true
+  agentListenerPort: 50000
+  agentListenerHostPort:
+  agentListenerNodePort:
+  agentListenerExternalTrafficPolicy:
+  agentListenerLoadBalancerSourceRanges:
+  - 0.0.0.0/0
+  disabledAgentProtocols:
+	- JNLP-connect
+	- JNLP2-connect
+  csrf:
+	defaultCrumbIssuer:
+	  enabled: true
+	  proxyCompatability: true
+  agentListenerServiceType: "ClusterIP"
+  agentListenerLoadBalancerIP:
+  agentListenerServiceAnnotations: {}
+  loadBalancerSourceRanges:
+  - 0.0.0.0/0
+  extraPorts: []
+  installPlugins:
+	- kubernetes:3600.v144b_cd192ca_a_
+	- workflow-aggregator:581.v0c46fa_697ffd
+	- git:4.11.3
+	- configuration-as-code:1429.v09b_044a_c93de
+  installLatestPlugins: true
+  installLatestSpecifiedPlugins: false
+  additionalPlugins: []
+  initializeOnce: false
+  overwritePluginsFromImage: true
+  enableRawHtmlMarkupFormatter: false
+  scriptApproval: []
+  initScripts: []
+  additionalExistingSecrets: []
+  additionalSecrets: []
+  secretClaims: []
+  cloudName: "kubernetes"
+  JCasC:
+	defaultConfig: true
+	configScripts: {}
+	securityRealm: |-
+	  local:
+		allowsSignup: false
+		enableCaptcha: false
+		users:
+		- id: "${chart-admin-username}"
+		  name: "Jenkins Admin"
+		  password: "${chart-admin-password}"
+	authorizationStrategy: |-
+	  loggedInUsersCanDoAnything:
+		allowAnonymousRead: false
+  customInitContainers: []
+  sidecars:
+	configAutoReload:
+	  enabled: true
+	  image: kiwigrid/k8s-sidecar:1.15.0
+	  imagePullPolicy: IfNotPresent
+	  resources: {}
+	  reqRetryConnect: 10
+	  sshTcpPort: 1044
+	  folder: "/var/jenkins_home/casc_configs"
+	  containerSecurityContext:
+		readOnlyRootFilesystem: true
+		allowPrivilegeEscalation: false
+	other: []
+  schedulerName: ""
+  nodeSelector: {}
+  terminationGracePeriodSeconds:
+  terminationMessagePath:
+  terminationMessagePolicy:
+  tolerations: []
+  affinity: {}
+  priorityClassName:
+  podAnnotations: {}
+  statefulSetAnnotations: {}
+  updateStrategy: {}
+  ingress:
+	enabled: false
+	paths: []
+	apiVersion: "extensions/v1beta1"
+	labels: {}
+	annotations: {}
+	hostName:
+	tls:
+  secondaryingress:
+	enabled: false
+	paths: []
+	apiVersion: "extensions/v1beta1"
+	labels: {}
+	annotations: {}
+	hostName:
+	tls:
+  backendconfig:
+	enabled: false
+	apiVersion: "extensions/v1beta1"
+	name:
+	labels: {}
+	annotations: {}
+	spec: {}
+  route:
+	enabled: false
+	labels: {}
+	annotations: {}
+  hostAliases: []
+  prometheus:
+	enabled: false
+	serviceMonitorAdditionalLabels: {}
+	scrapeInterval: 60s
+	scrapeEndpoint: /prometheus
+	alertingRulesAdditionalLabels: {}
+	alertingrules: []
+	prometheusRuleNamespace: ""
+  testEnabled: true
+  httpsKeyStore:
+	jenkinsHttpsJksSecretName: ''
+	enable: false
+	httpPort: 8081
+	path: "/var/jenkins_keystore"
+	fileName: "keystore.jks"
+	password: "password"
+	jenkinsKeyStoreBase64Encoded: |
+		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
+agent:
+  enabled: true
+  defaultsProviderTemplate: ""
+  jenkinsUrl:
+  jenkinsTunnel:
+  kubernetesConnectTimeout: 5
+  kubernetesReadTimeout: 15
+  maxRequestsPerHostStr: "32"
+  namespace:
+  image: "jenkins/inbound-agent"
+  tag: "4.11.2-4"
+  workingDir: "/home/jenkins/agent"
+  nodeUsageMode: "NORMAL"
+  customJenkinsLabels: []
+  imagePullSecretName:
+  componentName: "jenkins-agent"
+  websocket: false
+  privileged: false
+  runAsUser:
+  runAsGroup:
+  resources:
+	requests:
+	  cpu: "512m"
+	  memory: "512Mi"
+	limits:
+	  cpu: "512m"
+	  memory: "512Mi"
+  alwaysPullImage: false
+  podRetention: "Never"
+  showRawYaml: true
+  volumes: []
+  workspaceVolume: {}
+  envVars: []
+  nodeSelector: {}
+  command:
+  args: "${computer.jnlpmac} ${computer.name}"
+  sideContainerName: "jnlp"
+  TTYEnabled: false
+  containerCap: 10
+  podName: "default"
+  idleMinutes: 0
+  yamlTemplate: ""
+  yamlMergeStrategy: "override"
+  connectTimeout: 100
+  annotations: {}
+  disableDefaultAgent: false
+  podTemplates: {}
+additionalAgents: {}
+persistence:
+  enabled: true
+  existingClaim:
+  storageClass: jenkins-pv
+  annotations: {}
+  labels: {}
+  accessMode: "ReadWriteOnce"
+  size: "8Gi"
+  volumes:
+  mounts:
+networkPolicy:
+  enabled: false
+  apiVersion: networking.k8s.io/v1
+  internalAgents:
+	allowed: true
+	podLabels: {}
+	namespaceLabels: {}
+  externalAgents: {}
+rbac:
+  create: true
+  readSecrets: false
+serviceAccount:
+  create: false
+  name: jenkins
+  annotations: {}
+  imagePullSecretName:
+serviceAccountAgent:
+  create: false
+  name:
+  annotations: {}
+  imagePullSecretName:
+backup:
+  enabled: false
+  componentName: "backup"
+  schedule: "0 2 * * *"
+  labels: {}
+  serviceAccount:
+	create: true
+	name:
+	annotations: {}
+  activeDeadlineSeconds: ""
+  image:
+	repository: "maorfr/kube-tasks"
+	tag: "0.2.0"
+  imagePullSecretName:
+  extraArgs: []
+  existingSecret: {}
+  env: []
+  resources:
+	requests:
+	  memory: 1Gi
+	  cpu: 1
+	limits:
+	  memory: 1Gi
+	  cpu: 1
+  destination: "s3://jenkins-data/backup"
+  onlyJobs: false
+  usePodSecurityContext: true
+  runAsUser: 1000
+  fsGroup: 1000
+  securityContextCapabilities: {}
+checkDeprecation: true
+awsSecurityGroupPolicies:
+  enabled: false
+  policies:
+	- name: ""
+	  securityGroupIds: []
+	  podSelector: {}
+EOF  
+
+sleep 5
+chart=jenkinsci/jenkins
+helm install jenkins -n jenkins -f jenkins-values.yaml $chart
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  managedFields:
+  name: jenkinsingress
+  namespace: jenkins
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: jenkins.edson-devops.eti.br
+	http:
+	  paths:
+	  - backend:
+		  service:
+			name: jenkins
+			port:
+			  number: 8080
+		path: /
+		pathType: Prefix
+  tls:
+  - hosts:
+	- jenkins.edson-devops.eti.br
+	secretName: tls-jenkins-ingress
+EOF
+
+sleep 5
+footer
+jsonpath="{.data.jenkins-admin-password}"
+secret=$(kubectl get secret -n jenkins jenkins -o jsonpath=$jsonpath)
+echo $(echo $secret | base64 --decode)
+footer
+}
+
+installHarbor ()
+
+{
+header "Instalando Harbor"
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harbor
+EOF
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: harbor
+  annotations:
+	volume.beta.kubernetes.io/storage-class: local-path
+spec:
+  accessModes:
+	- ReadWriteOnce
+  resources:
+	requests:
+	  storage: 2Gi
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: harbor
+  labels:
+	app: postgres
+spec:
+  ports:
+	- port: 5432
+  selector:
+	app: postgres
+  clusterIP: None
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: harbor
+  labels:
+	app: postgres
+spec:
+  strategy:
+	type: Recreate
+  replicas: 1
+  selector:
+	matchLabels:
+	  app: postgres
+  template:
+	metadata:
+	  labels:
+		app: postgres
+	spec:
+	  schedulerName: stork
+	  containers:
+	  - name: postgres
+		image: postgres:13.2
+		readinessProbe:
+		  exec:
+			command: ["psql", "-w", "-U", "postgres", "-c", "SELECT 1"]
+		  initialDelaySeconds: 15
+		  timeoutSeconds: 2
+		livenessProbe:
+		  exec:
+			command: ["psql", "-w", "-U", "postgres", "-c", "SELECT 1"]
+		  initialDelaySeconds: 45
+		  timeoutSeconds: 2
+		ports:
+		- containerPort: 5432
+		  name: postgres
+		env:
+		- name: POSTGRES_USER
+		  value: postgres
+		- name: POSTGRES_PASSWORD
+		  value: password
+		- name: PGDATA
+		  value: /var/lib/postgresql/data/pgdata
+		volumeMounts:
+		- name: postgres-persistent-storage
+		  mountPath: /var/lib/postgresql/data
+	  volumes:
+	  - name: postgres-persistent-storage
+		persistentVolumeClaim:
+		  claimName: postgres-pvc
+EOF
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: harbor
+  annotations:
+	volume.beta.kubernetes.io/storage-class: local-path
+spec:
+  accessModes:
+	- ReadWriteOnce
+  resources:
+	requests:
+	  storage: 2Gi
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: harbor
+spec:
+  ports:
+	- port: 6379
+	  name: redis
+  clusterIP: None
+  selector:
+	app: redis
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: harbor
+  labels:
+	app: redis
+spec:
+  selector:
+	matchLabels:
+	  app: redis
+  template:
+	metadata:
+	  labels:
+		app: redis
+	spec:
+	  schedulerName: stork
+	  containers:
+	  - name: redis
+		image: redis:3.2-alpine
+		imagePullPolicy: Always
+		args: ["--requirepass", "password"]
+		ports:
+		  - containerPort: 6379
+			name: redis
+		volumeMounts:
+		  - name: redis-vol
+			mountPath: /data
+	  volumes:
+	  - name: redis-vol
+		persistentVolumeClaim:
+		  claimName: redis-pvc
+EOF
+
+sleep 5
+kubectl -n harbor-system create secret tls tls-harbor-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n harbor-system create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+sleep 5
+cat <<EOF  > harbor-values.yaml
+expose:
+  type: ingress
+  tls:
+	enabled: true
+	certSource: auto
+	auto:
+	  commonName: ""
+	secret:
+	  secretName: harbor-ingress
+	  notarySecretName: harbor-ingress
+  ingress:
+	hosts:
+	  core: registry.edson-devops.eti.br
+	  notary: notary.edson-devops.eti.br
+	controller: default
+	kubeVersionOverride: ""
+	className: ""
+	annotations:
+	notary:
+	  annotations: {}
+	  labels: {}
+	harbor:
+	  annotations: {}
+	  labels: {}
+  clusterIP:
+	name: harbor
+	annotations: {}
+	ports:
+	  httpPort: 80
+	  httpsPort: 443
+	  notaryPort: 4443
+  nodePort:
+	name: harbor
+	ports:
+	  http:
+		port: 80
+		nodePort: 30002
+	  https:
+		port: 443
+		nodePort: 30003
+	  notary:
+		port: 4443
+		nodePort: 30004
+  loadBalancer:
+	name: harbor
+	IP: ""
+	ports:
+	  httpPort: 80
+	  httpsPort: 443
+	  notaryPort: 4443
+	annotations: {}
+	sourceRanges: []
+externalURL: https://harbor.edson-devops.eti.br
+internalTLS:
+  enabled: false
+  certSource: "auto"
+  trustCa: ""
+  core:
+	secretName: ""
+	crt: ""
+	key: ""
+  jobservice:
+	secretName: ""
+	crt: ""
+	key: ""
+  registry:
+	secretName: ""
+	crt: ""
+	key: ""
+  portal:
+	secretName: ""
+	crt: ""
+	key: ""
+  chartmuseum:
+	secretName: ""
+	crt: ""
+	key: ""
+  trivy:
+	secretName: ""
+	crt: ""
+	key: ""
+ipFamily:
+  ipv6:
+	enabled: true
+  ipv4:
+	enabled: true
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+	registry:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 5Gi
+	  annotations: {}
+	chartmuseum:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 5Gi
+	  annotations: {}
+	jobservice:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 1Gi
+	  annotations: {}
+	database:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 1Gi
+	  annotations: {}
+	redis:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 1Gi
+	  annotations: {}
+	trivy:
+	  existingClaim: ""
+	  storageClass: harbor-data
+	  subPath: ""
+	  accessMode: ReadWriteOnce
+	  size: 5Gi
+	  annotations: {}
+  imageChartStorage:
+	disableredirect: false
+	type: filesystem
+	filesystem:
+	  rootdirectory: /storage
+	azure:
+	  accountname: accountname
+	  accountkey: base64encodedaccountkey
+	  container: containername
+	gcs:
+	  bucket: bucketname
+	  encodedkey: base64-encoded-json-key-file
+	s3:
+	  region: us-west-1
+	  bucket: bucketname
+	swift:
+	  authurl: https://storage.myprovider.com/v3/auth
+	  username: username
+	  password: password
+	  container: containername
+	oss:
+	  accesskeyid: accesskeyid
+	  accesskeysecret: accesskeysecret
+	  region: regionname
+	  bucket: bucketname
+imagePullPolicy: IfNotPresent
+imagePullSecrets:
+updateStrategy:
+  type: RollingUpdate
+logLevel: info
+harborAdminPassword: "Harbor12345"
+caSecretName: ""
+secretKey: "not-a-secure-key"
+proxy:
+  httpProxy:
+  httpsProxy:
+  noProxy: 127.0.0.1,localhost,.local,.internal
+  components:
+	- core
+	- jobservice
+	- trivy
+enableMigrateHelmHook: false
+nginx:
+  image:
+	repository: goharbor/nginx-photon
+	tag: dev
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  replicas: 1
+  revisionHistoryLimit: 10
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  priorityClassName:
+portal:
+  image:
+	repository: goharbor/harbor-portal
+	tag: dev
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  replicas: 1
+  revisionHistoryLimit: 10
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  priorityClassName:
+core:
+  image:
+	repository: goharbor/harbor-core
+	tag: dev
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  replicas: 1
+  revisionHistoryLimit: 10
+  startupProbe:
+	enabled: true
+	initialDelaySeconds: 10
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  secret: ""
+  secretName: ""
+  xsrfKey: ""
+  priorityClassName:
+  artifactPullAsyncFlushDuration:
+jobservice:
+  image:
+	repository: goharbor/harbor-jobservice
+	tag: dev
+  replicas: 1
+  revisionHistoryLimit: 10
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  maxJobWorkers: 10
+  jobLoggers:
+	- file
+  loggerSweeperDuration: 14 #days
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  secret: ""
+  priorityClassName:
+registry:
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  registry:
+	image:
+	  repository: goharbor/registry-photon
+	  tag: dev
+  controller:
+	image:
+	  repository: goharbor/harbor-registryctl
+	  tag: dev
+  replicas: 1
+  revisionHistoryLimit: 10
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  priorityClassName:
+  secret: ""
+  relativeurls: false
+  credentials:
+	username: "harbor_registry_user"
+	password: "harbor_registry_password"
+  middleware:
+	enabled: false
+	type: cloudFront
+	cloudFront:
+	  baseurl: example.cloudfront.net
+	  keypairid: KEYPAIRID
+	  duration: 3000s
+	  ipfilteredby: none
+	  privateKeySecret: "my-secret"
+  upload_purging:
+	enabled: true
+	age: 168h
+	interval: 24h
+	dryrun: false
+chartmuseum:
+  enabled: true
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  absoluteUrl: false
+  image:
+	repository: goharbor/chartmuseum-photon
+	tag: dev
+  replicas: 1
+  revisionHistoryLimit: 10
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  priorityClassName:
+  indexLimit: 0
+trivy:
+  enabled: true
+  image:
+	repository: goharbor/trivy-adapter-photon
+	tag: dev
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  replicas: 1
+  debugMode: false
+  vulnType: "os,library"
+  severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+  ignoreUnfixed: false
+  insecure: false
+  skipUpdate: false
+  offlineScan: false
+  timeout: 5m0s
+  resources:
+	requests:
+	  cpu: 200m
+	  memory: 512Mi
+	limits:
+	  cpu: 1
+	  memory: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  priorityClassName:
+notary:
+  enabled: true
+  server:
+	serviceAccountName: ""
+	automountServiceAccountToken: false
+	image:
+	  repository: goharbor/notary-server-photon
+	  tag: dev
+	replicas: 1
+	nodeSelector: {}
+	tolerations: []
+	affinity: {}
+	podAnnotations: {}
+	priorityClassName:
+  signer:
+	serviceAccountName: ""
+	automountServiceAccountToken: false
+	image:
+	  repository: goharbor/notary-signer-photon
+	  tag: dev
+	replicas: 1
+	nodeSelector: {}
+	tolerations: []
+	affinity: {}
+	podAnnotations: {}
+	priorityClassName:
+  secretName: ""
+database:
+  type: internal
+  internal:
+	serviceAccountName: ""
+	automountServiceAccountToken: false
+	image:
+	  repository: goharbor/harbor-db
+	  tag: dev
+	password: "changeit"
+	shmSizeLimit: 512Mi
+	nodeSelector: {}
+	tolerations: []
+	affinity: {}
+	priorityClassName:
+	initContainer:
+	  migrator: {}
+	  permissions: {}
+  external:
+	host: "192.168.0.1"
+	port: "5432"
+	username: "user"
+	password: "password"
+	coreDatabase: "registry"
+	notaryServerDatabase: "notary_server"
+	notarySignerDatabase: "notary_signer"
+	sslmode: "disable"
+  maxIdleConns: 100
+  maxOpenConns: 900
+  podAnnotations: {}
+redis:
+  type: internal
+  internal:
+	serviceAccountName: ""
+	automountServiceAccountToken: false
+	image:
+	  repository: goharbor/redis-photon
+	  tag: dev
+	nodeSelector: {}
+	tolerations: []
+	affinity: {}
+	priorityClassName:
+  external:
+	addr: "192.168.0.2:6379"
+	sentinelMasterSet: ""
+	coreDatabaseIndex: "0"
+	jobserviceDatabaseIndex: "1"
+	registryDatabaseIndex: "2"
+	chartmuseumDatabaseIndex: "3"
+	trivyAdapterIndex: "5"
+	password: ""
+  podAnnotations: {}
+exporter:
+  replicas: 1
+  revisionHistoryLimit: 10
+  podAnnotations: {}
+  serviceAccountName: ""
+  automountServiceAccountToken: false
+  image:
+	repository: goharbor/harbor-exporter
+	tag: dev
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  cacheDuration: 23
+  cacheCleanInterval: 14400
+  priorityClassName:
+metrics:
+  enabled: false
+  core:
+	path: /metrics
+	port: 8001
+  registry:
+	path: /metrics
+	port: 8001
+  jobservice:
+	path: /metrics
+	port: 8001
+  exporter:
+	path: /metrics
+	port: 8001
+  serviceMonitor:
+	enabled: false
+	additionalLabels: {}
+	interval: ""
+	metricRelabelings: []
+	relabelings: []
+trace:
+  enabled: false
+  provider: jaeger
+  sample_rate: 1
+  jaeger:
+	endpoint: http://hostname:14268/api/traces
+  otel:
+	endpoint: hostname:4318
+	url_path: /v1/traces
+	compression: false
+	insecure: true
+	timeout: 10s
+EOF
+
+sleep 5
+cat <<EOF | helm upgrade --install harbor -n harbor-system harbor/harbor -f harbor-values.yaml \
+--set externalURL=https://harbor.edson-devops.eti.br \
+--set harborAdminPassword=admin \
+--set persistence.enabled=true
+EOF
+}
+
+installNeuvector ()
+{
+header "Instalando Neuvector"
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: neuvector
+EOF
+
+sleep 5
+kubectl -n neuvector create secret tls tls-neuvector-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n neuvector create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+sleep 5
+cat <<EOF  > neuvector-values.yaml
+openshift: false
+registry: docker.io
+tag: 5.0.0-b2
+oem:
+imagePullSecrets:
+psp: false
+serviceAccount: default
+controller:
+  enabled: true
+  strategy:
+	type: RollingUpdate
+	rollingUpdate:
+	  maxSurge: 1
+	  maxUnavailable: 0
+  image:
+	repository: neuvector/controller
+	hash:
+  replicas: 3
+  disruptionbudget: 0
+  schedulerName:
+  priorityClassName:
+  env: []
+  affinity:
+	podAntiAffinity:
+	  preferredDuringSchedulingIgnoredDuringExecution:
+	  - weight: 100
+		podAffinityTerm:
+		  labelSelector:
+			matchExpressions:
+			- key: app
+			  operator: In
+			  values:
+			  - neuvector-controller-pod
+		  topologyKey: "kubernetes.io/hostname"
+  tolerations: []
+  nodeSelector: {}
+  apisvc:
+	type:
+	annotations: {}
+	route:
+	  enabled: false
+	  termination: passthrough
+	  host:
+  ranchersso:
+	enabled: false
+  pvc:
+	enabled: false
+	accessModes:
+	  - ReadWriteMany
+	storageClass:
+	capacity:
+  azureFileShare:
+	enabled: false
+	secretName:
+	shareName:
+  certificate:
+	secret:
+	keyFile: tls.key
+	pemFile: tls.pem
+  federation:
+	mastersvc:
+	  type:
+	  ingress:
+		enabled: false
+		host:  
+		ingressClassName: ""
+		path: "/" 
+		annotations:
+		  ingress.kubernetes.io/protocol: https
+		tls: false
+		secretName: 
+	  annotations: {}
+	  route:
+		enabled: false
+		termination: passthrough
+		host:
+	managedsvc:
+	  type:
+	  ingress:
+		enabled: false
+		host:  
+		ingressClassName: ""
+		path: "/"
+		annotations:
+		  ingress.kubernetes.io/protocol: https
+		tls: false
+		secretName: 
+	  annotations: {}
+	  route:
+		enabled: false
+		termination: passthrough
+		host:
+  ingress:
+	enabled: false
+	host: 
+	ingressClassName: ""
+	path: "/"
+	annotations:
+	  ingress.kubernetes.io/protocol: https
+	tls: false
+	secretName:
+  resources: {}
+  configmap:
+	enabled: false
+	data:
+  secret:
+	enabled: false
+	data: {}
+enforcer:
+  enabled: true
+  image:
+	repository: neuvector/enforcer
+	hash:
+  priorityClassName:
+  tolerations:
+	- effect: NoSchedule
+	  key: node-role.kubernetes.io/master
+  resources: {}
+	limits:
+	  cpu: 400m
+	  memory: 2792Mi
+	requests:
+	  cpu: 100m
+	  memory: 2280Mi
+manager:
+  enabled: true
+  image:
+	repository: neuvector/manager
+	hash:
+  priorityClassName:
+  env:
+	ssl: true
+  svc:
+	type: NodePort
+	loadBalancerIP:
+	annotations: {}
+  route:
+	enabled: true
+	termination: passthrough
+	host:
+  certificate:
+	secret:
+	keyFile: tls.key
+	pemFile: tls.pem
+  ingress:
+	enabled: true
+	host: neuvector.edson-devops.eti.br 
+	ingressClassName: nginx
+	path: "/"
+	annotations: 
+	  kubernetes.io/ingress.class: nginx
+	  nginx.ingress.kubernetes.io/whitelist-source-range: "1.1.1.1"
+	  nginx.ingress.kubernetes.io/rewrite-target: /
+	  nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+	  nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+	tls: true
+	secretName: tls-neuvector-ingress
+  resources: 
+	limits:
+	  cpu: 400m
+	  memory: 2792Mi
+	requests:
+	  cpu: 100m
+	  memory: 2280Mi
+  affinity: {}
+  tolerations: []
+  nodeSelector: {}
+cve:
+  updater:
+	enabled: true
+	secure: false
+	image:
+	  repository: neuvector/updater
+	  tag: latest
+	  hash:
+	schedule: "0 0 * * *"
+	priorityClassName:
+  scanner:
+	enabled: true
+	replicas: 3
+	dockerPath: ""
+	strategy:
+	  type: RollingUpdate
+	  rollingUpdate:
+		maxSurge: 1
+		maxUnavailable: 0
+	image:
+	  repository: neuvector/scanner
+	  tag: latest
+	  hash:
+	priorityClassName:
+	resources: # {}
+	  limits:
+		cpu: 400m
+		memory: 2792Mi
+	  requests:
+		cpu: 100m
+		memory: 2280Mi
+	affinity: {}
+	tolerations: []
+	nodeSelector: {}
+docker:
+  path: /var/run/docker.sock
+resources: {}
+k3s:
+  enabled: false
+  runtimePath: /run/k3s/containerd/containerd.sock
+bottlerocket:
+  enabled: false
+  runtimePath: /run/dockershim.sock
+containerd:
+  enabled: false
+  path: /var/run/containerd/containerd.sock
+crio:
+  enabled: false
+  path: /var/run/crio/crio.sock
+admissionwebhook:
+  type: ClusterIP
+crdwebhook:
+  enabled: true
+  type: ClusterIP
+EOF
+
+sleep 5
+helm upgrade --install neuvector --namespace neuvector neuvector/core -f neuvector-values.yaml --set controller.pvc.storageClass=neuvector-data
+
+}
+
+installSonarqube ()
+{
+header "Instalando Sonarqube"
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sonarqube
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+  managedFields:
+  name: sonarqube-pv
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sonarqube-pv
+  namespace: sonarqube
+spec:
+  storageClassName: sonarqube-pv
+  accessModes:
+	- ReadWriteOnce
+  capacity:
+	storage: 10Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+	path: /data/sonarqube-volume/sonarqube
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sonarqube-postgresql-pv
+  namespace: sonarqube
+spec:
+  storageClassName: sonarqube-pv
+  accessModes:
+	- ReadWriteOnce
+  capacity:
+	storage: 10Gi
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+	path: /data/sonarqube-volume/postgresql
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+  finalizers:
+  labels:
+  managedFields:
+  name: sonarqube
+  namespace: sonarqube
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+	requests:
+	  storage: 10Gi
+  storageClassName: sonarqube-pv
+  volumeMode: Filesystem
+  volumeName: sonarqube-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+	storage: 20Gi
+  phase: Bound
+EOF
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+  finalizers:
+  labels:
+  managedFields:
+  name: data-sonarqube-postgresql-0
+  namespace: sonarqube
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+	requests:
+	  storage: 8Gi
+  storageClassName: sonarqube-pv
+  volumeMode: Filesystem
+  volumeName: sonarqube-postgresql-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+	storage: 20Gi
+  phase: Bound
+EOF
+
+sleep 5
+kubectl -n sonarqube create secret tls tls-sonarqube-ingress --cert=certs/tls.crt --key=certs/tls.key
+kubectl -n sonarqube create secret generic tls-ca --from-file=certs/cacerts.pem
+
+cat <<EOF  > sonarqube-values.yaml
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+kubeVersion: ""
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+clusterDomain: cluster.local
+extraDeploy: []
+diagnosticMode:
+  enabled: false
+  command:
+	- sleep
+  args:
+	- infinity
+image:
+  registry: docker.io
+  repository: bitnami/sonarqube
+  tag: 9.5.0-debian-11-r4
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  debug: false
+sonarqubeUsername: user
+sonarqubePassword: ""
+existingSecret: ""
+sonarqubeEmail: user@dominio.com
+minHeapSize: 1024m
+maxHeapSize: 2048m
+startTimeout: 150
+extraProperties: []
+sonarqubeSkipInstall: false
+smtpHost: ""
+smtpPort: ""
+smtpUser: ""
+smtpPassword: ""
+smtpProtocol: ""
+smtpExistingSecret: ""
+command: []
+args: []
+extraEnvVars: []
+extraEnvVarsCM: ""
+extraEnvVarsSecret: ""
+replicaCount: 1
+containerPorts:
+  http: 9000
+  elastic: 9001
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 100
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 100
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 15
+  successThreshold: 1
+customLivenessProbe: {}
+customReadinessProbe: {}
+customStartupProbe: {}
+resources:
+  limits: {}
+  requests:
+	cpu: 100m
+	memory: 2048Mi
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+hostAliases: []
+podLabels: {}
+podAnnotations: {}
+podAffinityPreset: ""
+podAntiAffinityPreset: soft
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+affinity: {}
+nodeSelector: {}
+tolerations: []
+updateStrategy:
+  type: RollingUpdate
+priorityClassName: ""
+schedulerName: ""
+lifecycleHooks: {}
+extraVolumes: []
+extraVolumeMounts: []
+sidecars: []
+initContainers: []
+service:
+  type: ClusterIP
+  ports:
+	http: 80
+	elastic: 9001
+  nodePorts:
+	http: ""
+	elastic: ""
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
+  annotations: {}
+  extraPorts: []
+  sessionAffinity: None
+  sessionAffinityConfig: {}
+ingress:
+  enabled: false
+  pathType: ImplementationSpecific
+  apiVersion: ""
+  ingressClassName: ""
+  hostname: sonarqube.local
+  path: /
+  annotations: {}
+  tls: false
+  selfSigned: false
+  extraHosts: []
+  extraPaths: []
+  extraTls: []
+  secrets: []
+  extraRules: []
+persistence:
+  enabled: true
+  storageClass: sonarque-pv
+  accessModes:
+	- ReadWriteOnce
+  size: 10Gi
+  dataSource: {}
+  existingClaim: sonarqube
+  annotations: {}
+volumePermissions:
+  enabled: false
+  image:
+	registry: docker.io
+	repository: bitnami/bitnami-shell
+	tag: 11-debian-11-r8
+	pullPolicy: IfNotPresent
+	pullSecrets: []
+  resources:
+	limits: {}
+	requests: {}
+  containerSecurityContext:
+	runAsUser: 0
+sysctl:
+  enabled: true
+  image:
+	registry: docker.io
+	repository: bitnami/bitnami-shell
+	tag: 11-debian-11-r8
+	pullPolicy: IfNotPresent
+	pullSecrets: []
+  resources:
+	limits: {}
+	requests: {}
+rbac:
+  create: false
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: true
+  annotations: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 11
+  targetCPU: 50
+  targetMemory: 50
+metrics:
+  jmx:
+	enabled: false
+	image:
+	  registry: docker.io
+	  repository: bitnami/jmx-exporter
+	  tag: 0.17.0-debian-11-r9
+	  pullPolicy: IfNotPresent
+	  pullSecrets: []
+	containerPorts:
+	  metrics: 10445
+	resources:
+	  limits: {}
+	  requests: {}
+	containerSecurityContext:
+	  enabled: true
+	  runAsUser: 1001
+	  runAsNonRoot: true
+	whitelistObjectNames:
+	  - java.lang:*
+	  - SonarQube:*
+	  - Tomcat:*
+	configuration: |-
+	  jmxUrl: service:jmx:rmi:///jndi/rmi://127.0.0.1:10443/jmxrmi
+	  lowercaseOutputName: true
+	  lowercaseOutputLabelNames: true
+	  ssl: false
+	  {{- if .Values.metrics.jmx.whitelistObjectNames }}
+	  whitelistObjectNames: ["{{ join "\",\"" .Values.metrics.jmx.whitelistObjectNames }}"]
+	  {{- end }}
+	  rules:
+	  - pattern: java.lang<type=(.+), name=(.+)><(.+)>(\w+)
+		name: java_lang_$1_$4_$3_$2
+	  - pattern: java.lang<type=(.+), name=(.+)><>(\w+)
+		name: java_lang_$1_$3_$2
+	  - pattern: java.lang<type=(.*)>
+	  - pattern: SonarQube<name=(.+)><>(\w+)
+		name: sonarqube_$1_$2
+	  - pattern: Tomcat<type=(.+), name=(.+)><>(\w+)
+		name: tomcat_$1_$3_$2
+	service:
+	  ports:
+		metrics: 10443
+	  annotations:
+		prometheus.io/scrape: "true"
+		prometheus.io/port: "{{ .Values.metrics.jmx.service.ports.metrics }}"
+		prometheus.io/path: "/"
+  serviceMonitor:
+	enabled: false
+	namespace: ""
+	labels: {}
+	jobLabel: ""
+	interval: ""
+	scrapeTimeout: ""
+	metricRelabelings: []
+	relabelings: []
+	selector: {}
+postgresql:
+  enabled: true
+  nameOverride: ""
+  auth:
+	existingSecret: ""
+	password: ""
+	username: bn_sonarqube
+	database: bitnami_sonarqube
+  service:
+	ports:
+	  postgresql: 5432
+  persistence:
+	enabled: true
+	existingClaim: data-sonarqube-postgresql-0
+	storageClass: sonarqube
+	accessMode: ReadWriteOnce
+	size: 8Gi
+externalDatabase:
+  host: ""
+  user: postgres
+  password: ""
+  existingSecret: ""
+  database: sonarqube
+  port: 5432
+EOF
+
+sleep 5
+helm install sonarqube -n sonarqube bitnami/sonarqube -f sonarqube-values.yaml
+
+sleep 5
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+	traefik.ingress.kubernetes.io/router.entrypoints: web
+  managedFields:
+  name: sonarqubeingress
+  namespace: sonarqube
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: sonarqube.edson-devops.eti.br
+	http:
+	  paths:
+	  - backend:
+		  service:
+			name: sonarqube
+			port:
+			  number: 80
+		path: /
+		pathType: Prefix
+  tls:
+  - hosts:
+	- sonarqube.edson-devops.eti.br
+	secretName: tls-sonarqube-ingress
+status:
+  loadBalancer:
+	ingress:
+	- ip: 192.168.1.10
+EOF  
+  
+sleep 5
+footer
+echo Username: user
+echo Password: $(kubectl get secret --namespace sonarqube sonarqube -o jsonpath="{.data.sonarqube-password}" | base64 -d)
+footer
+}
+
+isSelected()
+{
+  if [ "${1}" = "Yes" ] || [ "${1}" = "yes" ] || [ "${1}" = "Y" ]  || [ "${1}" = "y" ];
+  then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+installAddons ()
+{
+  read_value "Instalar Provisionando Volume Persistente" "${INSTALL_PVP}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installPVP
+  fi
+
+  read_value "Install Cert-Manager? ${yes_no}" "${INSTALL_CERTMANAGER}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installCertManager
+  fi  
+
+  read_value "Install Rancher? ${yes_no}" "${INSTALL_RANCHER}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installRancher
+  fi
+
+  read_value "Instalar Jenkins? ${yes_no}" "${INSTALL_JENKINS}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installJenkins
+  fi
+
+  read_value "Instalar Sonarqube? ${yes_no}" "${INSTALL_SONARQUBE}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installSonarqube
+  fi
+  
+  read_value "Instalar Harbor? ${yes_no}" "${INSTALL_HARBOR}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then
+      installHarbor
+  fi
+
+  read_value "Instalar Neuvector? ${yes_no}" "${INSTALL_NEUVECTOR}"
+  if [ $(isSelected ${READ_VALUE}) = 1 ];
+  then 
+      installNeuvector
+  fi
+}
+
+checkDependencies 
+
+#Retrieve config values 
+configValues
+
+# Todo Calico
+
+installCluster
+
+installAddons
+

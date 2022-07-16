@@ -1,0 +1,263 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+kubeVersion: ""
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+clusterDomain: cluster.local
+extraDeploy: []
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+image:
+  registry: docker.io
+  repository: bitnami/sonarqube
+  tag: 9.5.0-debian-11-r4
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  debug: false
+sonarqubeUsername: user
+sonarqubePassword: ""
+existingSecret: ""
+sonarqubeEmail: user@dominio.com
+minHeapSize: 1024m
+maxHeapSize: 2048m
+startTimeout: 150
+extraProperties: []
+sonarqubeSkipInstall: false
+smtpHost: ""
+smtpPort: ""
+smtpUser: ""
+smtpPassword: ""
+smtpProtocol: ""
+smtpExistingSecret: ""
+command: []
+args: []
+extraEnvVars: []
+extraEnvVarsCM: ""
+extraEnvVarsSecret: ""
+replicaCount: 1
+containerPorts:
+  http: 9000
+  elastic: 9001
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 100
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 100
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+  successThreshold: 1
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 15
+  successThreshold: 1
+customLivenessProbe: {}
+customReadinessProbe: {}
+customStartupProbe: {}
+resources:
+  limits: {}
+  requests:
+    cpu: 100m
+    memory: 2048Mi
+podSecurityContext:
+  enabled: true
+  fsGroup: 1001
+containerSecurityContext:
+  enabled: true
+  runAsUser: 1001
+  runAsNonRoot: true
+hostAliases: []
+podLabels: {}
+podAnnotations: {}
+podAffinityPreset: ""
+podAntiAffinityPreset: soft
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+affinity: {}
+nodeSelector: {}
+tolerations: []
+updateStrategy:
+  type: RollingUpdate
+priorityClassName: ""
+schedulerName: ""
+lifecycleHooks: {}
+extraVolumes: []
+extraVolumeMounts: []
+sidecars: []
+initContainers: []
+service:
+  type: ClusterIP
+  ports:
+    http: 80
+    elastic: 9001
+  nodePorts:
+    http: ""
+    elastic: ""
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
+  annotations: {}
+  extraPorts: []
+  sessionAffinity: None
+  sessionAffinityConfig: {}
+ingress:
+  enabled: false
+  pathType: ImplementationSpecific
+  apiVersion: ""
+  ingressClassName: ""
+  hostname: sonarqube.local
+  path: /
+  annotations: {}
+  tls: false
+  selfSigned: false
+  extraHosts: []
+  extraPaths: []
+  extraTls: []
+  secrets: []
+  extraRules: []
+persistence:
+  enabled: true
+  storageClass: sonarque-pv
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  dataSource: {}
+  existingClaim: sonarqube
+  annotations: {}
+volumePermissions:
+  enabled: false
+  image:
+    registry: docker.io
+    repository: bitnami/bitnami-shell
+    tag: 11-debian-11-r8
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  resources:
+    limits: {}
+    requests: {}
+  containerSecurityContext:
+    runAsUser: 0
+sysctl:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: bitnami/bitnami-shell
+    tag: 11-debian-11-r8
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  resources:
+    limits: {}
+    requests: {}
+rbac:
+  create: false
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: true
+  annotations: {}
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 11
+  targetCPU: 50
+  targetMemory: 50
+metrics:
+  jmx:
+    enabled: false
+    image:
+      registry: docker.io
+      repository: bitnami/jmx-exporter
+      tag: 0.17.0-debian-11-r9
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+    containerPorts:
+      metrics: 10445
+    resources:
+      limits: {}
+      requests: {}
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+    whitelistObjectNames:
+      - java.lang:*
+      - SonarQube:*
+      - Tomcat:*
+    configuration: |-
+      jmxUrl: service:jmx:rmi:///jndi/rmi://127.0.0.1:10443/jmxrmi
+      lowercaseOutputName: true
+      lowercaseOutputLabelNames: true
+      ssl: false
+      {{- if .Values.metrics.jmx.whitelistObjectNames }}
+      whitelistObjectNames: ["{{ join "\",\"" .Values.metrics.jmx.whitelistObjectNames }}"]
+      {{- end }}
+      rules:
+      - pattern: java.lang<type=(.+), name=(.+)><(.+)>(\w+)
+        name: java_lang_$1_$4_$3_$2
+      - pattern: java.lang<type=(.+), name=(.+)><>(\w+)
+        name: java_lang_$1_$3_$2
+      - pattern: java.lang<type=(.*)>
+      - pattern: SonarQube<name=(.+)><>(\w+)
+        name: sonarqube_$1_$2
+      - pattern: Tomcat<type=(.+), name=(.+)><>(\w+)
+        name: tomcat_$1_$3_$2
+    service:
+      ports:
+        metrics: 10443
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.metrics.jmx.service.ports.metrics }}"
+        prometheus.io/path: "/"
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    labels: {}
+    jobLabel: ""
+    interval: ""
+    scrapeTimeout: ""
+    metricRelabelings: []
+    relabelings: []
+    selector: {}
+postgresql:
+  enabled: true
+  nameOverride: ""
+  auth:
+    existingSecret: ""
+    password: ""
+    username: bn_sonarqube
+    database: bitnami_sonarqube
+  service:
+    ports:
+      postgresql: 5432
+  persistence:
+    enabled: true
+    existingClaim: data-sonarqube-postgresql-0
+    storageClass: sonarqube
+    accessMode: ReadWriteOnce
+    size: 8Gi
+externalDatabase:
+  host: ""
+  user: postgres
+  password: ""
+  existingSecret: ""
+  database: sonarqube
+  port: 5432

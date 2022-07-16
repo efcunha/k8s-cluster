@@ -1,0 +1,974 @@
+# -- SigNoz chart full name override
+fullnameOverride: ""
+
+# Clickhouse default values
+clickhouse:
+  # -- Cloud service being deployed on (example: `aws`, `azure`, `gcp`, `hcloud`, `other`).
+  # Based on the cloud, storage class for the persistent volume is selected.
+  # When set to 'aws' or 'gcp', new expandible storage class is created.
+  # When set to something else or not set, the default storage class (if any) from the k8s cluster is selected.
+  cloud: other
+
+  zookeeper:
+    #
+    # Please DO NOT override this value.
+    # This chart installs Zookeeper separately.
+    # Only if you know what you are doing, proceed with overriding.
+    #
+
+    # -- Whether to install zookeeper. If false, `clickhouse.externalZookeeper` must be set.
+    enabled: true
+
+  # -- Name override for clickhouse
+  nameOverride: ""
+
+  # -- Fullname override for clickhouse
+  fullnameOverride: ""
+
+  # -- Whether to install clickhouse. If false, `clickhouse.host` must be set
+  enabled: true
+
+  # -- Which namespace to install clickhouse and the `clickhouse-operator` to (defaults to namespace chart is installed to)
+  namespace:
+  # -- Clickhouse cluster
+  cluster: cluster
+  # -- Clickhouse database (SigNoz Metrics)
+  database: signoz_metrics
+  # -- Clickhouse trace database (SigNoz Traces)
+  traceDatabase: signoz_traces
+  # -- Clickhouse user
+  user: admin
+  # -- Clickhouse password
+  password: 27ff0399-0d3a-4bd8-919d-17c2181e6fb9
+
+  # -- Clickhouse image
+  image:
+    # -- Clickhouse image registry to use.
+    registry: docker.io
+    # -- Clickhouse image repository to use.
+    repository: clickhouse/clickhouse-server
+    # -- Clickhouse image tag to use (example: `21.8`).
+    # SigNoz is not always tested with latest version of ClickHouse.
+    # Only if you know what you are doing, proceed with overriding.
+    tag: 22.4.5-alpine
+    # -- Clickhouse image pull policy.
+    pullPolicy: IfNotPresent
+
+  # Clickhouse service
+  service:
+    # -- Service Type: LoadBalancer (allows external access) or NodePort (more secure, no extra cost)
+    type: ClusterIP
+    # -- Clickhouse HTTP port
+    httpPort: 8123
+    # -- Clickhouse TCP port
+    tcpPort: 9000
+
+  # -- Whether to use TLS connection connecting to ClickHouse
+  secure: false
+  # -- Whether to verify TLS certificate on connection to ClickHouse
+  verify: false
+  # -- URL for zookeeper.
+  externalZookeeper: {}
+    # servers:
+    # - host: signoz-signoz-zookeeper
+    #   port: 2181
+
+  # -- Toleration labels for clickhouse pod assignment
+  tolerations: []
+  # -- Affinity settings for clickhouse pod
+  affinity: {}
+  # -- Clickhouse resource requests/limits. See more at http://kubernetes.io/docs/user-guide/compute-resources/
+  resources: {}
+  #   limits:
+  #     cpu: 4000m
+  #     memory: 16Gi
+  #   requests:
+  #     cpu: 1000m
+  #     memory: 5Gi
+
+  # -- Security context for Clickhouse node
+  securityContext:
+    enabled: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+
+  # -- Service Type: LoadBalancer (allows external access) or NodePort (more secure, no extra cost)
+  serviceType: ClusterIP
+
+  # -- If enabled, operator will prefer k8s nodes with tag `clickhouse:true`
+  useNodeSelector: false
+
+  # -- An allowlist of IP addresses or network masks the ClickHouse user is
+  # allowed to access from. By default anything within a private network will be
+  # allowed. This should suffice for most use case although to expose to other
+  # networks you will need to update this setting.
+  #
+  allowedNetworkIps:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+  persistence:
+    # -- Enable data persistence using PVC.
+    enabled: true
+
+    # -- Use a manually managed Persistent Volume and Claim.
+    # If defined, PVC must be created manually before volume will be bound.
+    #
+    existingClaim: ""
+
+    # -- Persistent Volume Storage Class to use.
+    # If defined, `storageClassName: <storageClass>`.
+    # If set to `storageClassName: ""`, disables dynamic provisioning.
+    # If undefined (the default) or set to `null`, no storageClassName spec is
+    # set, choosing the default provisioneralertmanager
+    #
+    storageClass: local-patch
+
+    # -- Persistent Volume size
+    size: 20Gi
+
+  # -- Clickhouse user profile configuration.
+  # You can use this to override profile settings, for example `default/max_memory_usage: 40000000000`
+  # For the full list of settings, see:
+  # - https://clickhouse.com/docs/en/operations/settings/settings-profiles/
+  # - https://clickhouse.com/docs/en/operations/settings/settings/
+  #
+  profiles: {}
+
+  # -- Default user profile configuration for Clickhouse. !!! Please DO NOT override this !!!
+  defaultProfiles:
+    default/allow_experimental_window_functions: "1"
+    default/allow_nondeterministic_mutations: "1"
+
+  # -- Clickhouse cluster layout. (Experimental, use at own risk)
+  # For a full list of options, see https://github.com/Altinity/clickhouse-operator/blob/master/docs/custom_resource_explained.md
+  # section on clusters and layouts.
+  #
+  layout:
+    shardsCount: 1
+    replicasCount: 1
+
+  # -- ClickHouse settings configuration.
+  # You can use this to override settings, for example `prometheus/port: 9363`
+  # For the full list of settings, see:
+  # - https://clickhouse.com/docs/en/operations/settings/settings/
+  #
+  settings: {}
+    # Uncomment those lines if you want to enable the built-in Prometheus HTTP endpoint in ClickHouse.
+    # prometheus/endpoint: /metrics
+    # prometheus/port: 9363
+    # prometheus/metrics: true
+    # prometheus/events: true
+    # prometheus/asynchronous_metrics: true
+
+  # -- Default settings configuration for ClickHouse. !!! Please DO NOT override this !!!
+  defaultSettings:
+    format_schema_path: /etc/clickhouse-server/config.d/
+
+  # -- ClickHouse pod(s) annotation.
+  podAnnotations: {}
+
+  # Cold storage configuration
+  coldStorage:
+    # -- Whether to enable S3 cold storage
+    enabled: false
+    # -- Reserve free space on default disk (in bytes)
+    defaultKeepFreeSpaceBytes: "10485760"
+    # -- AWS S3 endpoint
+    endpoint: https://<bucket-name>.s3.amazonaws.com/data/
+    # AWS role configuration - to use environment variables instead of passing access and secret keys
+    role:
+      # -- Whether to enable AWS IAM ARN role.
+      enabled: false
+      # -- Annotations to use by service account associated to Clickhouse instance
+      annotations:
+        # aws role arn
+        eks.amazonaws.com/role-arn: arn:aws:iam::******:role/*****
+    # -- AWS Access Key
+    accessKey: <access_key_id>
+    # -- AWS Secret Access Key
+    secretAccess: <secret_access_key>
+
+
+  ###
+  ###
+  ### ---- MISC ----
+  ###
+  ###
+
+  # -- When the `installCustomStorageClass` is enabled with `cloud` set as `gcp` or `aws`,
+  # it creates custom storage class with volume expansion permission.
+  installCustomStorageClass: false
+
+  clickhouseOperator:
+    # -- ClickhouseOperator node selector
+    nodeSelector: {}
+
+
+## External clickhouse configuration
+## This is required when clickhouse.enabled is false
+##
+externalClickhouse:
+  # -- Host of the external cluster.
+  host:
+  # -- Name of the external cluster to run DDL queries on.
+  cluster: cluster
+  # -- Database name for the external cluster
+  database: signoz_metrics
+  # -- Clickhouse trace database (SigNoz Traces)
+  traceDatabase: signoz_traces
+  # -- User name for the external cluster to connect to the external cluster as
+  user: ""
+  # -- Password for the cluster. Ignored if existingClickhouse.existingSecret is set
+  password: ""
+  # -- Name of an existing Kubernetes secret object containing the password
+  existingSecret:
+  # -- Name of the key pointing to the password in your Kubernetes secret
+  existingSecretPasswordKey:
+  # -- Whether to use TLS connection connecting to ClickHouse
+  secure: false
+  # -- Whether to verify TLS connection connecting to ClickHouse
+  verify: false
+    # -- HTTP port of Clickhouse
+  httpPort: 8123
+  # -- TCP port of Clickhouse
+  tcpPort: 9000
+
+
+# Default values for query-service
+queryService:
+  name: "query-service"
+  replicaCount: 1
+  image:
+    registry: docker.io
+    repository: signoz/query-service
+    tag: 0.9.2
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name:
+  initContainers:
+    init:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: busybox
+        tag: 1.35
+        pullPolicy: IfNotPresent
+      command:
+        delay: 5
+        endpoint: /ping
+        waitMessage: "waiting for clickhouseDB"
+        doneMessage: "clickhouse ready, starting query service now"
+  configVars:
+    storage: clickhouse
+    # ClickHouse URL is set and applied internally.
+    # Don't override unless you know what you are doing.
+    # clickHouseUrl: tcp://my-release-clickhouse:9000/?database=signoz_traces&username=clickhouse_operator&password=clickhouse_operator_password
+    goDebug: netdns=go
+    telemetryEnabled: true
+    deploymentType: kubernetes-helm
+
+  podSecurityContext:
+    {}
+    # fsGroup: 2000
+
+  securityContext:
+    {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  service:
+    type: ClusterIP
+    port: 8080
+    internalPort: 8085
+
+  ingress:
+    enabled: true 
+    className: ""
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart.edson-devops.eti.br
+        paths: 
+    tls: 
+      - secretName: tls-signoz-ingress
+        hosts:
+          - chart.edson-devops.eti.br
+
+  # adjust the resource requests and limit as necessary
+  resources:
+    requests:
+      cpu: 200m
+      memory: 300Mi
+    limits:
+      cpu: 750m
+      memory: 1000Mi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+
+# Default values for frontend
+frontend:
+  name: "frontend"
+  replicaCount: 1
+
+  image:
+    registry: docker.io
+    repository: signoz/frontend
+    tag: 0.9.2
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name:
+
+  initContainers:
+    init:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: busybox
+        tag: 1.35
+        pullPolicy: IfNotPresent
+      command:
+        delay: 5
+        endpoint: /api/v1/version
+        waitMessage: "waiting for query-service"
+        doneMessage: "clickhouse ready, starting frontend now"
+
+  configVars: {}
+
+  podSecurityContext:
+    {}
+    # fsGroup: 2000
+
+  securityContext:
+    {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  service:
+    type: ClusterIP
+    port: 3301
+
+  ingress:
+    enabled: true
+    className: ""
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: frontend.edson-devops.eti.br
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: 
+      - secretName: tls-signoz-ingress
+        hosts:
+          - frontend.edson-devops.eti.br
+
+  # adjust the resource requests and limit as necessary
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+
+# Default values for Alertmanager
+alertmanager:
+  name: "alertmanager"
+  replicaCount: 1
+
+  image:
+    registry: docker.io
+    repository: signoz/alertmanager
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: 0.23.0-0.1
+
+  command: []
+  extraArgs: {}
+
+  imagePullSecrets: []
+
+  service:
+    annotations: {}
+    type: ClusterIP
+    port: 9093
+    # if you want to force a specific nodePort. Must be use with service.type=NodePort
+    # nodePort:
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name:
+
+  initContainers:
+    init:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: busybox
+        tag: 1.35
+        pullPolicy: IfNotPresent
+      command:
+        delay: 5
+        endpoint: /api/v1/version
+        waitMessage: "waiting for query-service"
+        doneMessage: "clickhouse ready, starting alertmanager now"
+
+  podSecurityContext:
+    fsGroup: 65534
+  dnsConfig: {}
+    # nameservers:
+    #   - 1.2.3.4
+    # searches:
+    #   - ns1.svc.cluster-domain.example
+    #   - my.dns.search.suffix
+    # options:
+    #   - name: ndots
+    #     value: "2"
+    #   - name: edns0
+  securityContext:
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    runAsUser: 65534
+    runAsNonRoot: true
+    runAsGroup: 65534
+
+  additionalPeers: []
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+
+  ingress:
+    enabled: true
+    className: ""
+    annotations: 
+      kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: alertmanager.edson-devops.eti.br
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: 
+      - secretName: tls-signoz-ingress
+        hosts:
+          - alertmanager.edson-devops.eti.br
+
+  resources:
+    # adjust the resource requests and limit as necessary
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  statefulSet:
+    annotations: {}
+
+  podAnnotations: {}
+  podLabels: {}
+
+  # Ref: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+  podDisruptionBudget: {}
+    # maxUnavailable: 1
+    # minAvailable: 1
+
+  persistence:
+    enabled: true
+    ## Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ## set, choosing the default provisioner.
+    ##
+    # storageClass: "-"
+    accessModes:
+      - ReadWriteOnce
+    size: 100Mi
+
+  ## Using the config, alertmanager.yml file is created.
+  ## We no longer need the config file as query services
+  ## delivers the required config.
+  # config:
+    # global:
+    #   resolve_timeout: 1m
+    #   slack_api_url: 'https://hooks.slack.com/services/xxx'
+
+    # templates:
+    #   - '/etc/alertmanager/*.tmpl'
+
+    # receivers:
+    # - name: 'slack-notifications'
+    #   slack_configs:
+    #   - channel: '#alerts'
+    #     send_resolved: true
+    #     icon_url: https://avatars3.githubusercontent.com/u/3380462
+    #     title: '{{ template "slack.title" . }}'
+    #     text: '{{ template "slack.text" . }}'
+
+    # route:
+    #   receiver: 'slack-notifications'
+
+  ## Templates are no longer needed as they are included
+  ## from frontend placeholder while creating alert channels.
+  # templates:
+  #   title.tmpl: |-
+  #       {{ define "slack.title" }}
+  #       [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }} for {{ .CommonLabels.job }}
+  #       {{- if gt (len .CommonLabels) (len .GroupLabels) -}}
+  #         {{" "}}(
+  #         {{- with .CommonLabels.Remove .GroupLabels.Names }}
+  #           {{- range $index, $label := .SortedPairs -}}
+  #             {{ if $index }}, {{ end }}
+  #             {{- $label.Name }}="{{ $label.Value -}}"
+  #           {{- end }}
+  #         {{- end -}}
+  #         )
+  #       {{- end }}
+  #       {{ end }}
+  #   text.tmpl: |-
+  #       {{ define "slack.text" }}
+  #       {{ range .Alerts -}}
+  #       *Alert:* {{ .Labels.alertname }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+
+  #       *Summary:* {{ .Annotations.summary }}
+  #       *Description:* {{ .Annotations.description }}
+
+  #       *Details:*
+  #         {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+  #         {{ end }}
+  #       {{ end }}
+  #       {{ end }}
+
+  ## Monitors ConfigMap changes and POSTs to a URL
+  ## Ref: https://github.com/jimmidyson/configmap-reload
+  ##
+  configmapReload:
+    ## If false, the configmap-reload container will not be deployed
+    ##
+    enabled: false
+
+    ## configmap-reload container name
+    ##
+    name: configmap-reload
+
+    ## configmap-reload container image
+    ##
+    image:
+      repository: jimmidyson/configmap-reload
+      tag: v0.5.0
+      pullPolicy: IfNotPresent
+
+    # containerPort: 9533
+
+    ## configmap-reload resource requests and limits
+    ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+    ##
+    resources: {}
+
+
+# Default values for OtelCollector
+otelCollector:
+  name: "otel-collector"
+  image:
+    registry: docker.io
+    repository: signoz/otelcontribcol
+    tag: 0.45.1-1.0
+    pullPolicy: Always
+  serviceType: "ClusterIP"
+  imagePullSecrets: []
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name:
+  minReadySeconds: 5
+  progressDeadlineSeconds: 120
+  replicaCount: 1
+  ballastSizeMib: 683
+  initContainers:
+    init:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: busybox
+        tag: 1.35
+        pullPolicy: IfNotPresent
+      command:
+        delay: 5
+        endpoint: /ping
+        waitMessage: "waiting for clickhouseDB"
+        doneMessage: "clickhouse ready, starting otel collector now"
+  # ports used by the container
+  ports:
+    zPages: 55679                     # Default endpoint for ZPages.
+    otelGrpcReceiver: 4317            # Default endpoint for OpenTelemetry gRPC receiver.
+    otelHttpReceiver: 4318            # Default endpoint for OpenTelemetry HTTP receiver.
+    otelGrpcLegacyReceiver: 55680     # Default endpoint for OpenTelemetry gRPC legacy receiver.
+    otelHttpLegacyReceiver: 55681     # Default endpoint for OpenTelemetry HTTP/1.0 legacy receiver.
+    jaegerGrpcReceiver: 14250         # Default endpoint for Jaeger GRPC receiver.
+    jaegerHttpReceiver: 14268         # Default endpoint for Jaeger HTTP receiver.
+    zipkinReceiver: 9411              # Default endpoint for Zipkin receiver.
+    queryingMetrics: 8888             # Default endpoint for querying metrics.
+    prometheusExportedMetrics: 8889   # Default endpoint for prometheus exported metrics.
+
+  ## Configure liveness and readiness probes.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ##
+  livenessProbe:
+    enabled: false
+    port: 13133
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: false
+    port: 13133
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  ## Custom liveness and readiness probes
+  customLivenessProbe: {}
+  customReadinessProbe: {}
+
+  ingress:
+    enabled: true
+    className: ""
+    annotations: 
+      kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: otelcollector.edson-devops.eti.br
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: 
+      - secretName: tls-signoz-ingress
+        hosts:
+          - otelcollector.edson-devops.eti.br
+
+  # adjust the resource requests and limit as necessary
+  resources:
+    requests:
+      cpu: 200m
+      memory: 400Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  # configurations to form the file in configmap
+  config:
+    receivers:
+      otlp/spanmetrics:
+        protocols:
+          grpc:
+            endpoint: localhost:12345
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      jaeger:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:14250
+          thrift_http:
+            endpoint: 0.0.0.0:14268
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          load: {}
+          memory: {}
+          disk: {}
+          filesystem: {}
+          network: {}
+    processors:
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+      signozspanmetrics/prometheus:
+        metrics_exporter: prometheus
+        latency_histogram_buckets: [100us, 1ms, 2ms, 6ms, 10ms, 50ms, 100ms, 250ms, 500ms, 1000ms, 1400ms, 2000ms, 5s, 10s, 20s, 40s, 60s]
+        dimensions_cache_size: 10000
+        dimensions:
+        - name: service.namespace
+          default: default
+        - name: deployment.environment
+          default: default
+      # memory_limiter:
+      #   # 80% of maximum memory up to 2G
+      #   limit_mib: 1500
+      #   # 25% of limit up to 2G
+      #   spike_limit_mib: 512
+      #   check_interval: 5s
+      #
+      #   # 50% of the maximum memory
+      #   limit_percentage: 50
+      #   # 20% of max memory usage spike expected
+      #   spike_limit_percentage: 20
+      # queued_retry:
+      #   num_workers: 4
+      #   queue_size: 100
+      #   retry_on_failure: true
+    extensions:
+      health_check: {}
+      zpages: {}
+    exporters:
+      clickhousetraces:
+        datasource: tcp://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}/?database=${CLICKHOUSE_TRACE_DATABASE}&username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}
+      clickhousemetricswrite:
+        endpoint: tcp://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}/?database=${CLICKHOUSE_DATABASE}&username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}
+        resource_to_telemetry_conversion:
+          enabled: true
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    service:
+      extensions: [health_check, zpages]
+      pipelines:
+        traces:
+          receivers: [jaeger, otlp]
+          processors: [signozspanmetrics/prometheus, batch]
+          exporters: [clickhousetraces]
+        metrics:
+          receivers: [otlp, hostmetrics]
+          processors: [batch]
+          exporters: [clickhousemetricswrite]
+        metrics/spanmetrics:
+          receivers: [otlp/spanmetrics]
+          exporters: [prometheus]
+
+
+# Default values for OtelCollectorMetrics
+otelCollectorMetrics:
+  name: "otel-collector-metrics"
+  image:
+    registry: docker.io
+    repository: signoz/otelcontribcol
+    tag: 0.45.1-1.0
+    pullPolicy: Always
+  imagePullSecrets: []
+  serviceType: "ClusterIP"
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name:
+
+  minReadySeconds: 5
+  progressDeadlineSeconds: 120
+  replicaCount: 1
+  ballastSizeMib: 683
+  initContainers:
+    init:
+      enabled: true
+      image:
+        registry: docker.io
+        repository: busybox
+        tag: 1.35
+        pullPolicy: IfNotPresent
+      command:
+        delay: 5
+        endpoint: /ping
+        waitMessage: "waiting for clickhouseDB"
+        doneMessage: "clickhouse ready, starting otel collector metrics now"
+
+  # ports used by the container
+  ports:
+    zPages: 55679                   # Default endpoint for ZPages.
+    otelGrpcReceiver: 4317          # Default endpoint for OpenTelemetry gRPC receiver.
+    otelHttpReceiver: 4318          # Default endpoint for OpenTelemetry HTTP receiver.
+    otelGrpcLegacyReceiver: 55680   # Default endpoint for OpenTelemetry gRPC legacy receiver.
+    otelHttpLegacyReceiver: 55681   # Default endpoint for OpenTelemetry HTTP/1.0 legacy receiver.
+    jaegerGrpcReceiver: 14250       # Default endpoint for Jaeger GRPC receiver.
+    jaegerHttpReceiver: 14268       # Default endpoint for Jaeger HTTP receiver.
+    zipkinReceiver: 9411            # Default endpoint for Zipkin receiver.
+    queryingMetrics: 8888           # Default endpoint for querying metrics.
+
+  ## Configure liveness and readiness probes.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/#configure-probes
+  ##
+  livenessProbe:
+    enabled: false
+    port: 13133
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: false
+    port: 13133
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  ## Custom liveness and readiness probes
+  customLivenessProbe: {}
+  customReadinessProbe: {}
+
+  ingress:
+    enabled: true
+    className: ""
+    annotations: 
+      kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: otelcollector-metrics.edson-devops.eti.br
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: 
+      - secretName: tls-signoz-ingress
+        hosts:
+          - otelcollector-metrics.edson-devops.eti.br
+
+  # adjust the resource requests and limit as necessary
+  resources:
+    requests:
+      cpu: 200m
+      memory: 400Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  # configurations to form the file in configmap
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+      # Data sources: metrics
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: otel-collector
+              scrape_interval: 30s
+              static_configs:
+                - targets:
+                  # the following string is replaced with OTel service name using the helper template
+                  - $OTEL_COLLECTOR_PROMETHEUS
+    processors:
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+      # memory_limiter:
+      #   # 80% of maximum memory up to 2G
+      #   limit_mib: 1500
+      #   # 25% of limit up to 2G
+      #   spike_limit_mib: 512
+      #   check_interval: 5s
+      #
+      #   # 50% of the maximum memory
+      #   limit_percentage: 50
+      #   # 20% of max memory usage spike expected
+      #   spike_limit_percentage: 20
+      # queued_retry:
+      #   num_workers: 4
+      #   queue_size: 100
+      #   retry_on_failure: true
+    extensions:
+      health_check: {}
+      zpages: {}
+    exporters:
+      clickhousemetricswrite:
+        endpoint: tcp://${CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}/?database=${CLICKHOUSE_DATABASE}&username=${CLICKHOUSE_USER}&password=${CLICKHOUSE_PASSWORD}
+    service:
+      extensions: [health_check, zpages]
+      pipelines:
+        metrics:
+          receivers: [otlp, prometheus]
+          processors: [batch]
+          exporters: [clickhousemetricswrite]

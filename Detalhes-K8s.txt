@@ -1,0 +1,175 @@
+docker rm -f $(docker ps -qa)
+docker rmi -f $(docker images -q)
+docker volume rm $(docker volume ls -q)
+for mount in $(mount | grep tmpfs | grep '/var/lib/kubelet' | awk '{ print $3 }') /var/lib/kubelet /var/lib/rancher; do umount $mount; done
+
+rm -rf /etc/ceph \
+       /etc/cni \
+	   /etc/kubernetes \
+	   /opt/cni /opt/rke \
+	   /run/secrets/kubernetes.io \
+	   /run/calico \
+	   /run/flannel \
+	   /var/lib/calico \
+	   /var/lib/etcd \
+	   /var/lib/cni \
+	   /var/lib/kubelet \
+	   /var/lib/rancher/rke/log \
+	   /var/log/containers  \
+	   /var/log/kube-audit \
+	   /var/log/pods \
+	   /var/run/calico
+	   
+https://github.com/cloudogu/simple-rke	
+https://xen-orchestra.com/blog/tag/devops/   
+https://registry.terraform.io/namespaces/terra-farm
+
+# CertManager
+
+kubectl apply --validate=false -f https://github.com/jetstack/cert-manager/releases/download/v1.8.2/cert-manager.crds.yaml
+
+kubectl create namespace cert-manager
+
+helm repo add jetstack https://charts.jetstack.io
+
+helm install \
+  cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --version v1.8.2
+
+kubectl get pods -n cert-manager
+
+# Rancher
+
+helm install rancher rancher-stable/rancher \
+  --namespace cattle-system \
+  --set hostname=rancher.edson-devops.eti.br \
+  --set ingress.tls.source=secret \
+  --set privateCA=true
+
+kubectl -n cattle-system rollout status deploy/rancher
+
+kubectl -n cattle-system get deploy rancher
+
+# Traefik
+
+helm repo add traefik https://helm.traefik.io/traefik
+
+helm install traefik traefik/traefik -f values.yaml
+
+kubectl -n default create secret tls tls-traefik-ingress --cert=cert/tls.crt --key=cert/tls.key
+kubectl -n default create secret generic tls-ca --from-file=cacerts.pem
+kubectl expose deploy/traefik -n default --port=9000 --target-port=9000 --name=traefik-dashboard
+kubectl create ingress traefik-dashboard --rule="traefik.edson-devops.eti.br/*=traefik-dashboard:9000"
+
+# Jenkins
+helm repo add jenkinsci https://charts.jenkins.io
+
+helm install jenkins -n jenkins -f 06-jenkins-values.yaml jenkinsci/jenkins
+
+kubectl -n jenkins create secret tls tls-jenkins-ingress --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n jenkins create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+i1kDF8ZaV9sizUCEudXJLS
+
+# Sonarqube
+
+helm repo add bitnami https://charts.bitnami.com/bitnami
+
+helm install sonarqube -n devops bitnami/sonarqube -f values.yaml
+
+3. Login with the following credentials below:
+
+echo Username: user
+echo Password: $(kubectl get secret --namespace devops sonarqube -o jsonpath="{.data.sonarqube-password}" | base64 -d)
+Password: 1fY1LJhdC0
+
+# Harbor 
+
+https://blog.krybot.com/a?ID=01450-6adee527-ef18-409b-85b3-35dceca4326b
+
+
+kubectl get namespace devops &> /dev/null || kubectl create namespace harbor-system
+kubectl label namespace --overwrite devops app=kubed
+
+helm repo add harbor https://helm.goharbor.io
+
+MY_DOMAIN=edson-devops.eti.br
+
+helm upgrade --install harbor -n harbor harbor/harbor -f values.yaml --set externalURL=https://registry.edson-devops.eti.br --set harborAdminPassword=admin --set persistence.enabled=true
+
+# Neuvector
+
+helm repo add neuvector https://neuvector.github.io/neuvector-helm/
+
+--dry-run --debug 
+helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml --set controller.pvc.enabled=true --set controller.pvc.storageClass=neuvector-data --set controller.pvc.capacity=1Gi
+
+helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml --set controller.pvc.storageClass=neuvector-data
+
+helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml
+
+# Sentry
+
+helm repo add sentry https://sentry-kubernetes.github.io/charts
+
+helm install --namespace devops sentry -f ./sentry-value.yml sentry/sentry \
+  --set redis.primary.persistence.storageClass=local-path \
+  --set postgresql.persistence.storageClass=local-path 
+
+# ArgoCD
+
+https://faun.pub/deploying-argo-cd-and-sealed-secrets-with-helm-8de12f53051b
+
+
+# SigNoz
+
+https://signoz.io/
+
+
+DEFAULT_STORAGE_CLASS=$(kubectl get storageclass -o=jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}')
+
+kubectl patch storageclass "$DEFAULT_STORAGE_CLASS" -p '{"allowVolumeExpansion": true}'
+
+helm repo add signoz https://charts.signoz.io
+
+kubectl apply -f https://raw.githubusercontent.com/SigNoz/charts/main/charts/clickhouse/crds/clickhouse-operator-install.yaml
+
+helm upgrade --install signoz -n platform signoz/signoz -f values.yaml
+
+helm uninstall signoz -n platform
+
+# Apache skywalking
+
+https://amjadhussain3751.medium.com/step-by-step-detailed-guide-to-setup-apache-skywalking-on-kubernetes-8369e3d93242
+
+helm repo add skywalking https://apache.jfrog.io/artifactory/skywalking-helm
+
+htpasswd -c auth skywalking
+New password: 
+Re-type new password: 
+Adding password for user skywalking
+
+kubectl -n skywalking create secret generic ui-auth --from-file=auth
+
+helm upgrade --install skywalking -n skywalking skywalking/skywalking -f values.yaml \
+  --set oap.image.tag=9.1.0 \
+  --set oap.storageType=elasticsearch \
+  --set ui.image.tag=9.1.0 \
+  --set elasticsearch.imageTag=6.8.6 \
+  --set elasticsearch.persistence.enabled=true
+
+helm uninstall skywalking -n skywalking
+
+kubectl -n skywalking get pods 
+
+# Nexus
+
+https://devopscube.com/setup-nexus-kubernetes/
+
+kubectl -n devops-tools create secret tls tls-nexus --cert=../certs/tls.crt --key=../certs/tls.key
+kubectl -n devops-tools create secret generic tls-ca --from-file=../certs/cacerts.pem
+
+kubectl describe service nexus-service -n devops-tools
+kubectl get pods -n devops-tools
+kubectl exec nexus-55976bf6fd-cvhxb -n devops-tools cat /nexus-data/admin.password

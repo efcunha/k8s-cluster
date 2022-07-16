@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+  finalizers:
+  labels:
+  managedFields:
+  name: data-sonarqube-postgresql-0
+  namespace: sonarqube
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: sonarqube-pv
+  volumeMode: Filesystem
+  volumeName: sonarqube-postgresql-pv
+status:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 20Gi
+  phase: Bound
+

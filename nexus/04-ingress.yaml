@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  managedFields:
+  name: nexus-ingress
+  namespace: devops-tools
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: nexus.edson-devops.eti.br
+    http:
+      paths:
+      - backend:
+          service:
+            name: nexus-service
+            port:
+              number: 32000
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - nexus.edson-devops.eti.br
+    secretName: tls-nexus

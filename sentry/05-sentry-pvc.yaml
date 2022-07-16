@@ -1,0 +1,376 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-kafka-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-ata-sentry-kafka-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-kafka-1
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-kafka-1
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-kafka-2
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-kafka-2
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-rabbitmq-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-rabbitmq-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-sentry-postgresql-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-sentry-postgresql-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-zookeeper-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-zookeeper-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-zookeeper-clickhouse-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-zookeeper-clickhouse-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-zookeeper-clickhouse-1
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-zookeeper-clickhouse-1
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: data-sentry-zookeeper-clickhouse-2
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-data-sentry-zookeeper-clickhouse-2
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: redis-data-sentry-sentry-redis-master-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-redis-data-sentry-sentry-redis-master-0
+  
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: redis-data-sentry-sentry-redis-replicas-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-redis-data-sentry-sentry-redis-replicas-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: sentry-clickhouse-data-sentry-clickhouse-0
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-sentry-clickhouse-data-sentry-clickhouse-0
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: sentry-clickhouse-data-sentry-clickhouse-1
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-sentry-clickhouse-data-sentry-clickhouse-1
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    meta.helm.sh/release-name: sentry
+    meta.helm.sh/release-namespace: sentry
+    pv.kubernetes.io/bind-completed: "yes"
+    pv.kubernetes.io/bound-by-controller: "yes"
+    volume.beta.kubernetes.io/storage-provisioner: rancher.io/local-path
+    volume.kubernetes.io/selected-node: 192.168.1.10
+    volume.kubernetes.io/storage-provisioner: rancher.io/local-path
+  finalizers:
+  - kubernetes.io/pvc-protection
+  managedFields:
+  name: sentry-clickhouse-data-sentry-clickhouse-2
+  namespace: sentry
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+  volumeMode: Filesystem
+  volumeName: pvc-sentry-clickhouse-data-sentry-clickhouse-2

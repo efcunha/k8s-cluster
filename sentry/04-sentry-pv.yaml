@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  managedFields:
+  name: sentry-pv
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 80Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: sentry
+    namespace: sentry
+  hostPath:
+    path: /data/sentry-volume/
+    type: ""
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: sentry-pv
+  volumeMode: Filesystem
