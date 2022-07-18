@@ -103,11 +103,10 @@ helm upgrade --install harbor -n harbor harbor/harbor -f values.yaml --set exter
 helm repo add neuvector https://neuvector.github.io/neuvector-helm/
 
 --dry-run --debug 
-helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml --set controller.pvc.enabled=true --set controller.pvc.storageClass=neuvector-data --set controller.pvc.capacity=1Gi
 
-helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml --set controller.pvc.storageClass=neuvector-data
+helm upgrade --install neuvector --namespace devops neuvector/core -f 06-neuvector-values.yaml --set controller.pvc.storageClass=neuvector-data
 
-helm upgrade --install neuvector --namespace devops neuvector/core -f 12-neuvector-values.yaml
+helm upgrade --install neuvector --namespace devops neuvector/core -f 06-neuvector-values.yaml
 
 # Sentry
 
