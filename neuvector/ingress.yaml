@@ -1,0 +1,29 @@
+# Source: core/templates/manager-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: neuvector-webui-ingress
+  namespace: default
+  annotations:
+    ingress.kubernetes.io/protocol: https
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  labels:
+spec:
+  tls:
+  - hosts:
+    - neuvector.edson-devops.eti.br
+    secretName: tls-neuvector-ingress
+  rules:
+  - host: neuvector.edson-devops.eti.br
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: neuvector-service-webui
+            port:
+              number: 8443
