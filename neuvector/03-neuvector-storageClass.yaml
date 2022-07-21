@@ -1,7 +1,6 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  annotations:
   managedFields:
   name: neuvector-data
 provisioner: rancher.io/local-path
