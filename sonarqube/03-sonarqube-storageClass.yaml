@@ -1,7 +1,6 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  annotations:
   managedFields:
   - apiVersion: storage.k8s.io/v1
     fieldsType: FieldsV1

@@ -3,7 +3,6 @@ kind: PersistentVolume
 metadata:
   finalizers:
   - kubernetes.io/pv-protection
-  managedFields:
   name: neuvector-data
 spec:
   accessModes:

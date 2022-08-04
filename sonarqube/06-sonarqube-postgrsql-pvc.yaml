@@ -1,10 +1,6 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  annotations:
-  finalizers:
-  labels:
-  managedFields:
   name: data-sonarqube-postgresql-0
   namespace: sonarqube
 spec:
@@ -22,4 +18,3 @@ status:
   capacity:
     storage: 20Gi
   phase: Bound
-

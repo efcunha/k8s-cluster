@@ -55,4 +55,3 @@ spec:
   - hosts:
     - registry.edson-devops.eti.br
     secretName: tls-harbor-ingress
-

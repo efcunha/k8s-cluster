@@ -1,8 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-  managedFields:
   name: jenkins-ingress
   namespace: devops-tools
 spec:
@@ -22,4 +20,3 @@ spec:
   - hosts:
     - jenkins.edson-devops.eti.br
     secretName: tls-jenkins
-
