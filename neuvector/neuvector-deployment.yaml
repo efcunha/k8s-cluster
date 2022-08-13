@@ -28,7 +28,14 @@ spec:
               drop:
                 - ALL
               add:
-                - NET_BIND_SERVICE                  
+                - NET_BIND_SERVICE
+          resources:
+            limits:
+              memory: "4Gi"
+              cpu: "1000m"
+            requests:
+              memory: "2Gi"
+              cpu: "500m"        
           env:
             - name: CTRL_SERVER_IP
               value: neuvector-svc-controller.neuvector
@@ -68,7 +75,7 @@ spec:
                   values:
                   - neuvector-controller-pod
               topologyKey: "kubernetes.io/hostname"
-      containers:
+        containers:
         - name: neuvector-controller-pod
           image: neuvector/controller:5.0.2
           securityContext:
@@ -82,7 +89,14 @@ spec:
               drop:
                 - ALL
               add:
-                - NET_BIND_SERVICE                  
+                - NET_BIND_SERVICE
+            resources:
+              limits:
+                memory: "4Gi"
+                cpu: "1000m"
+              requests:
+                memory: "2Gi"
+                cpu: "500m"                                          
           readinessProbe:
             exec:
               command:
@@ -140,7 +154,7 @@ spec:
                   optional: true
               - secret:
                   name: neuvector-init
-                  optional: true      
+                  optional: true
 
 ---
 apiVersion: apps/v1
@@ -162,7 +176,6 @@ spec:
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master
-      hostPID: true
       containers:
         - name: neuvector-enforcer-pod
           image: neuvector/enforcer:5.0.2
@@ -248,7 +261,7 @@ spec:
     spec:
       containers:
         - name: neuvector-scanner-pod
-          image: neuvector/scanner
+          image: neuvector/scanner:5
           imagePullPolicy: Always
           securityContext:
             runAsNonRoot: true
@@ -261,7 +274,14 @@ spec:
               drop:
                 - ALL
               add:
-                - NET_BIND_SERVICE                  
+                - NET_BIND_SERVICE
+          resources:
+            limits:
+              memory: "4Gi"
+              cpu: "1000m"
+            requests:
+              memory: "2Gi"
+              cpu: "500m"        
           env:
             - name: CLUSTER_JOIN_ADDR
               value: neuvector-svc-controller.neuvector
@@ -284,7 +304,7 @@ spec:
         spec:
           containers:
           - name: neuvector-updater-pod
-            image: neuvector/updater
+            image: neuvector/updater:5
             imagePullPolicy: Always
             securityContext:
               runAsNonRoot: true
@@ -297,7 +317,14 @@ spec:
                 drop:
                   - ALL
                 add:
-                  - NET_BIND_SERVICE                  
+                  - NET_BIND_SERVICE 
+            resources:
+              limits:
+                memory: "4Gi"
+                cpu: "1000m"
+              requests:
+                memory: "2Gi"
+                cpu: "500m"                                     
             lifecycle:
               postStart:
                 exec:

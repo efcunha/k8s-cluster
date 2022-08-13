@@ -22,6 +22,6 @@
     },
     "kubeConfig": {
         "path": "/home/efcunha/.kube/config",
-        "currentContext": "local"
+        "currentContext": "minikube"
     }
 }
